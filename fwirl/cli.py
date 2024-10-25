@@ -70,7 +70,7 @@ cli.add_command(pause)
 @click.option("--rabbit_url", default=__RABBIT_URL__)
 def unpause(graph, key, rabbit_url):
     api_unpause(graph, key, rabbit_url)
-cli.add_command(pause)
+cli.add_command(unpause)
 
 @click.command()
 @click.argument("graph")
