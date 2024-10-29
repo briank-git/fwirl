@@ -79,8 +79,8 @@ cli.add_command(unpause)
 @click.argument("cron_string")
 @click.option("--asset", default=None)
 @click.option("--rabbit_url", default=__RABBIT_URL__)
-def schedule(graph, schedule, action, cron_str, asset, rabbit_url):
-    api_schedule(graph, schedule, action, cron_str, asset, rabbit_url)
+def schedule(graph, schedule, action, cron_string, asset, rabbit_url):
+    api_schedule(graph, schedule, action, cron_string, asset, rabbit_url)
 cli.add_command(schedule)
 
 @click.command()
