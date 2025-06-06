@@ -306,8 +306,8 @@ class AssetGraph:
     async def _run(self):
         message_task = None
         while True:
-            # remove paused schedules from job queue
-            self.job_queue = [job for job in self.job_queue if not self.schedules[job[0]].is_paused()]
+            # remove job from job queue if schedule does not exist or schedule paused
+            self.job_queue = [job for job in self.job_queue if job[0] in self.schedules and not self.schedules[job[0]].is_paused()]
             for sk in self.schedules:
                 if self.schedules[sk].next() == Schedule.IMMEDIATE:
                     # if the immediate job is already in the queue, just skip; otherwise add it
