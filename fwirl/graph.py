@@ -454,7 +454,7 @@ class AssetGraph:
                 for asset in assets:
                     nodes_to_build.append(asset)
                     nodes_to_build.extend(nx.ancestors(self.graph, asset))
-                sg = self.graph.subgraph(nodes_to_refresh)
+                sg = self.graph.subgraph(nodes_to_build)
                 sorted_nodes = list(nx.topological_sort(sg))
 
             required_resources = set()
