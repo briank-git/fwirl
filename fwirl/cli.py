@@ -10,6 +10,10 @@ from .api import (
                  unschedule as api_unschedule,
                  shutdown as api_shutdown
                 )
+from .server import (
+    start_webserver,
+    stop_webserver
+)
 from .message import __RABBIT_URL__
 
 @click.group()
@@ -90,4 +94,19 @@ cli.add_command(schedule)
 def unschedule(graph, schedule, rabbit_url):
     api_unschedule(graph, schedule, rabbit_url)
 cli.add_command(unschedule)
+
+@cli.group()
+def webserver():
+    pass
+
+@click.command()
+def start():
+    start_webserver()
+webserver.add_command(start)
+
+@click.command()
+def stop():
+    stop_webserver()
+webserver.add_command(stop)
+
 
