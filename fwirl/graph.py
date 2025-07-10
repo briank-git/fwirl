@@ -16,6 +16,8 @@ from coolname import generate_slug
 from .message import publish_msg, listen
 import signal
 import inspect
+import pickle
+import base64
 
 
 class ShutdownSignal(Exception):
@@ -211,6 +213,15 @@ class AssetGraph:
     def _process_message(self, msg):
         if msg is None: # if message get timed out
             return
+        
+        if msg["type"] == "graph":
+            pgv_agraph = nx.nx_agraph.to_agraph(self.graph)
+            svg = pgv_agraph.draw(format='svg', prog='dot')
+            pickled = pickle.dumps(svg)
+            encoded = base64.b64encode(pickled)
+            resp = encoded
+            resp_msg = {'type': 'response', 'response': resp}
+            publish_msg(msg["resp_queue"], resp_msg)
 
         if msg["type"] == "summarize":
             resp = self.summarize(display=False)

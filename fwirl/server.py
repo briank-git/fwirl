@@ -1,21 +1,40 @@
 import asyncio
 import threading
-from aiohttp import web
 import os, sys
 import tempfile
 import glob
 import psutil
+import pickle
+import base64
 from loguru import logger
+from coolname import generate_slug
+from aiohttp import web
+from queue import Queue
+from .message import get_msg,publish_msg,__RABBIT_URL__
 
-SERVERPORT = 8081
+
+__SERVERPORT__ = 8081
+
+def getgraph(graph_key, rabbit_url = __RABBIT_URL__):
+    resp_name = 'graph-'+generate_slug(2)
+    publish_msg(graph_key, {"type": "graph", "resp_queue": resp_name}, rabbit_url) 
+    queue = Queue()
+
+    get_msg(resp_name, queue, rabbit_url)
+    return queue.get()['response']
+
 
 def aiohttp_server():
     def handle_request(request):
-        graph_id = request.match_info['graph_id']
-        return web.Response(text=f"Graph ID: {graph_id}")
+        graph_key = request.match_info['graph_key']
+        encoded = getgraph(graph_key)
+        decoded = base64.b64decode(encoded)
+        svg = pickle.loads(decoded)
+
+        return web.Response(text=svg.decode('utf-8'),content_type='text/html')
 
     app = web.Application()
-    app.add_routes([web.get('/graphs/{graph_id}', handle_request)])
+    app.add_routes([web.get('/graphs/{graph_key}', handle_request)])
     runner = web.AppRunner(app)
     return runner
 
@@ -24,7 +43,7 @@ def run_server(runner):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(runner.setup())
-    site = web.TCPSite(runner, '127.0.0.1', SERVERPORT)
+    site = web.TCPSite(runner, '127.0.0.1', __SERVERPORT__)
     loop.run_until_complete(site.start())
     loop.run_forever()
 
@@ -35,7 +54,7 @@ def start_webserver():
             temp_file.write(str(fpid))
         sys.exit(0)
 
-    logger.info(f"Starting webserver on port {SERVERPORT}...")
+    logger.info(f"Starting webserver on port {__SERVERPORT__}...")
     t = threading.Thread(target=run_server, args=(aiohttp_server(),))
     t.start()
         
