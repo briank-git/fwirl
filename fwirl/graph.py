@@ -1,4 +1,5 @@
 import networkx as nx
+import pygraphviz as pgv
 from loguru import logger
 from .asset import Asset, AssetStatus
 #import matplotlib.pyplot as plt
@@ -32,13 +33,13 @@ __RABBIT_URL__ = "amqp://guest:guest@localhost//"
 __MESSAGE_TTL__ = 1
 
 
-_NODE_COLORS = {AssetStatus.Current : "tab:green",
+_NODE_COLORS = {AssetStatus.Current : "green",
                 AssetStatus.Stale : "khaki",
-                AssetStatus.Building : "tab:blue",
+                AssetStatus.Building : "blue",
                 AssetStatus.Paused : "slategray",
                 AssetStatus.UpstreamStopped : "lightslategray",
                 AssetStatus.Unavailable : "gray",
-                AssetStatus.Failed : "tab:red"
+                AssetStatus.Failed : "red"
             }
 
 # TODO: use HEX to match above colors <fg #00005f>, <fg #EE1>
@@ -209,17 +210,31 @@ class AssetGraph:
         except Empty:
             return None
         return msg
+    
+    # Annotates and colors graph then outputs the pickled and base64 encoded SVG representation
+    def _generate_graph_viz(self):
+        agraph = pgv.AGraph(directed=False, strict=True)
+
+        for node, attrs in self.graph.nodes(data=True):
+            status_color = _NODE_COLORS[node.status]
+            agraph.add_node(node, color=status_color, fontcolor=status_color)
+
+        for u, v, attrs in self.graph.edges(data=True):
+            agraph.add_edge(u, v)
+
+        agraph.node_attr["shape"] = "square"
+
+        svg = agraph.draw(format='svg', prog='dot')
+        pickled = pickle.dumps(svg)
+        encoded = base64.b64encode(pickled)
+        return encoded
 
     def _process_message(self, msg):
         if msg is None: # if message get timed out
             return
         
         if msg["type"] == "graph":
-            pgv_agraph = nx.nx_agraph.to_agraph(self.graph)
-            svg = pgv_agraph.draw(format='svg', prog='dot')
-            pickled = pickle.dumps(svg)
-            encoded = base64.b64encode(pickled)
-            resp = encoded
+            resp = self._generate_graph_viz()
             resp_msg = {'type': 'response', 'response': resp}
             publish_msg(msg["resp_queue"], resp_msg)
 
