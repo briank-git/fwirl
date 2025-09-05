@@ -211,15 +211,53 @@ class AssetGraph:
             return None
         return msg
     
+    # Consolidate status Current nodes to declutter but leave nodes with other statuses
+    # Returns a modified copy of the original graph
+    def _preprocess_graph(self):
+        graph = self.graph.copy()
+        root_nodes = [node for node, in_degree in graph.in_degree() if in_degree == 0]
+        
+        # Stack for traversing graph
+        s = []
+
+        visited = []
+
+        for r in root_nodes:
+            s.append(r)
+
+        while len(s) > 0:
+            n = s.pop()
+
+            if n in visited:
+               continue
+
+            visited.append(n)
+
+            if n.status is not AssetStatus.Current:
+                continue
+
+            # Consolidate node
+            children = list(graph.successors(n))
+            parents = list(graph.predecessors(n))
+
+            for c in children:
+                if n not in root_nodes:
+                    for p in parents:
+                        graph.add_edge(p, c)
+                    graph.remove_node(n)
+                s.append(c)
+                        
+        return graph
+    
     # Annotates and colors graph then outputs the pickled and base64 encoded SVG representation
-    def _generate_graph_viz(self):
+    def _generate_graph_viz(self, graph):
         agraph = pgv.AGraph(directed=False, strict=True)
 
-        for node, attrs in self.graph.nodes(data=True):
+        for node, attrs in graph.nodes(data=True):
             status_color = _NODE_COLORS[node.status]
             agraph.add_node(node, color=status_color, fontcolor=status_color)
 
-        for u, v, attrs in self.graph.edges(data=True):
+        for u, v, attrs in graph.edges(data=True):
             agraph.add_edge(u, v)
 
         agraph.node_attr["shape"] = "square"
@@ -234,7 +272,8 @@ class AssetGraph:
             return
         
         if msg["type"] == "graph":
-            resp = self._generate_graph_viz()
+            preprocessed = self._preprocess_graph()
+            resp = self._generate_graph_viz(preprocessed)
             resp_msg = {'type': 'response', 'response': resp}
             publish_msg(msg["resp_queue"], resp_msg)
 
