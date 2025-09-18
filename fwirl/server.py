@@ -30,7 +30,8 @@ def aiohttp_server():
         encoded = getgraph(graph_key)
         decoded = base64.b64decode(encoded)
         svg = pickle.loads(decoded)
-
+        
+        logger.info(encoded)
         return web.Response(text=svg.decode('utf-8'),content_type='text/html')
 
     app = web.Application()
