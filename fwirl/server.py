@@ -181,7 +181,7 @@ def dashboard_html(graph_key):
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     }}
     #graph-search input {{
-      width: 200px;
+      width: 280px;
       border-radius: 6px;
       border: 1px solid var(--border);
       padding: 5px 8px;
@@ -190,6 +190,40 @@ def dashboard_html(graph_key):
       font: inherit;
       font-size: 13px;
     }}
+    #graph-search-help {{ position: relative; display: inline-flex; }}
+    #graph-search-help button {{
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--muted);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: help;
+    }}
+    #graph-search-tooltip {{
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: 300px;
+      padding: 10px 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text);
+    }}
+    #graph-search-tooltip p {{ margin: 0 0 6px; }}
+    #graph-search-tooltip ul {{ margin: 0 0 6px; padding-left: 18px; }}
+    #graph-search-tooltip code {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }}
+    #graph-search-help:hover #graph-search-tooltip,
+    #graph-search-help:focus-within #graph-search-tooltip {{ display: block; }}
     #graph-search-count {{ color: var(--muted); font-size: 12px; white-space: nowrap; }}
     #assets-table {{ flex: 1; min-height: 280px; }}
     .resizer {{
@@ -284,8 +318,23 @@ def dashboard_html(graph_key):
           <div id="graph"></div>
           <div id="selection-box"></div>
           <div id="graph-search">
-            <input id="graph-search-input" type="search" placeholder="Search assets…" autocomplete="off" aria-label="Search assets" />
+            <input id="graph-search-input" type="search" placeholder="key  status=  group=  subgroup=  allow_retry=" autocomplete="off" aria-label="Search assets" />
             <span id="graph-search-count"></span>
+            <span id="graph-search-help">
+              <button type="button" aria-label="Search help" aria-describedby="graph-search-tooltip">?</button>
+              <div id="graph-search-tooltip" role="tooltip">
+                <p>Selects assets matching every space-separated term.</p>
+                <ul>
+                  <li><code>text</code> &mdash; key contains the text</li>
+                  <li><code>status=</code> &mdash; exact status</li>
+                  <li><code>group=</code> / <code>subgroup=</code> &mdash; exact group / subgroup</li>
+                  <li><code>allow_retry=true</code> or <code>false</code></li>
+                </ul>
+                <p>Matching is case-insensitive. Repeating a filter matches either value.</p>
+                <p>Example: <code>string status=failed group=etl</code></p>
+                <p>Enter re-runs, Shift+Enter adds to the selection, Esc clears.</p>
+              </div>
+            </span>
           </div>
         </div>
       </div>
@@ -472,17 +521,47 @@ def dashboard_html(graph_key):
     const searchInput = document.getElementById("graph-search-input");
     const searchCount = document.getElementById("graph-search-count");
     searchBox.addEventListener("mousedown", (event) => event.stopPropagation());
+    searchBox.addEventListener("wheel", (event) => event.stopPropagation());
     searchBox.addEventListener("contextmenu", (event) => event.stopPropagation());
 
+    const SEARCH_FIELDS = ["allow_retry", "status", "group", "subgroup"];
+
+    // Space-delimited tokens. "field=value" tokens filter on that field (repeated
+    // fields are OR-ed); all other tokens are substrings of the key. Everything is AND-ed.
+    function parseSearchQuery(text) {{
+      const terms = [];
+      const filters = {{}};
+      for (const token of text.trim().toLowerCase().split(/\\s+/)) {{
+        if (!token) continue;
+        const eq = token.indexOf("=");
+        const field = eq > 0 ? token.slice(0, eq) : "";
+        if (SEARCH_FIELDS.includes(field)) {{
+          const value = token.slice(eq + 1);
+          if (value) (filters[field] = filters[field] || []).push(value);
+        }} else if (!SEARCH_FIELDS.some((f) => token === `${{f}}=`)) {{
+          terms.push(token);
+        }}
+      }}
+      return {{ terms, filters }};
+    }}
+
+    function nodeMatchesSearch(node, terms, filters) {{
+      const key = String(node.key).toLowerCase();
+      if (!terms.every((term) => key.includes(term))) return false;
+      return Object.entries(filters).every(([field, values]) =>
+        values.includes(String(node[field] ?? "").toLowerCase())
+      );
+    }}
+
     function searchAssets(additive) {{
-      const query = searchInput.value.trim().toLowerCase();
-      if (!query) {{
+      const {{ terms, filters }} = parseSearchQuery(searchInput.value);
+      if (terms.length === 0 && Object.keys(filters).length === 0) {{
         searchCount.textContent = "";
         if (!additive) setSelectedAssets([]);
         return;
       }}
       const matches = (latestSnapshot?.nodes || [])
-        .filter((node) => String(node.key).toLowerCase().includes(query))
+        .filter((node) => nodeMatchesSearch(node, terms, filters))
         .map((node) => node.key);
       searchCount.textContent = `${{matches.length}} match${{matches.length === 1 ? "" : "es"}}`;
       setSelectedAssets(additive ? [...selectedAssets, ...matches] : matches);
