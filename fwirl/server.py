@@ -404,13 +404,33 @@ def dashboard_html(graph_key):
 
     network.on("click", (params) => {{
       if (boxSelection) return;
+      const src = params.event && params.event.srcEvent;
+      const additive = !!(src && src.shiftKey);
+      const subtractive = !!(src && (src.ctrlKey || src.metaKey));
       if (params.nodes.length === 0) {{
-        setSelectedAssets([]);
+        if (!additive && !subtractive) setSelectedAssets([]);
         return;
       }}
       const id = params.nodes[0];
       if (network.isCluster(id)) return;
-      setSelectedAssets([id]);
+      if (subtractive) {{
+        setSelectedAssets(selectedAssets.filter((key) => key !== id));
+      }} else if (additive) {{
+        setSelectedAssets([...selectedAssets, id]);
+      }} else {{
+        setSelectedAssets([id]);
+      }}
+    }});
+
+    // On macOS, ctrl+click fires "contextmenu" instead of "click", so handle it here.
+    graphWrap.addEventListener("contextmenu", (event) => {{
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const rect = graphWrap.getBoundingClientRect();
+      const id = network.getNodeAt({{ x: event.clientX - rect.left, y: event.clientY - rect.top }});
+      if (id && !network.isCluster(id)) {{
+        setSelectedAssets(selectedAssets.filter((key) => key !== id));
+      }}
     }});
 
     network.on("doubleClick", (params) => {{
@@ -444,9 +464,18 @@ def dashboard_html(graph_key):
       if (!boxSelection) return;
       boxSelection.current = point;
       const selected = nodesWithinSelection(boxSelection);
+      const finishedBox = boxSelection;
       boxSelection = null;
       selectionBox.style.display = "none";
-      setSelectedAssets(selected);
+      const isDrag = Math.abs(finishedBox.current.x - finishedBox.start.x) >= 2
+        || Math.abs(finishedBox.current.y - finishedBox.start.y) >= 2;
+      if (event.shiftKey) {{
+        if (isDrag) setSelectedAssets([...selectedAssets, ...selected]);
+      }} else if (event.ctrlKey || event.metaKey) {{
+        if (isDrag) setSelectedAssets(selectedAssets.filter((key) => !selected.includes(key)));
+      }} else {{
+        setSelectedAssets(selected);
+      }}
     }});
 
     function drawSelectionBox() {{
