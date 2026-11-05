@@ -166,6 +166,31 @@ def dashboard_html(graph_key):
       pointer-events: none;
       display: none;
     }}
+    #graph-search {{
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    }}
+    #graph-search input {{
+      width: 200px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      padding: 5px 8px;
+      background: var(--input-bg);
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+    }}
+    #graph-search-count {{ color: var(--muted); font-size: 12px; white-space: nowrap; }}
     #assets-table {{ flex: 1; min-height: 280px; }}
     .resizer {{
       background: var(--resizer);
@@ -258,6 +283,10 @@ def dashboard_html(graph_key):
         <div id="graph-wrap">
           <div id="graph"></div>
           <div id="selection-box"></div>
+          <div id="graph-search">
+            <input id="graph-search-input" type="search" placeholder="Search assets…" autocomplete="off" aria-label="Search assets" />
+            <span id="graph-search-count"></span>
+          </div>
         </div>
       </div>
       <div id="vertical-resizer" class="resizer vertical"></div>
@@ -437,6 +466,37 @@ def dashboard_html(graph_key):
       if (params.nodes.length === 0) return;
       const id = params.nodes[0];
       if (network.isCluster(id)) network.openCluster(id);
+    }});
+
+    const searchBox = document.getElementById("graph-search");
+    const searchInput = document.getElementById("graph-search-input");
+    const searchCount = document.getElementById("graph-search-count");
+    searchBox.addEventListener("mousedown", (event) => event.stopPropagation());
+    searchBox.addEventListener("contextmenu", (event) => event.stopPropagation());
+
+    function searchAssets(additive) {{
+      const query = searchInput.value.trim().toLowerCase();
+      if (!query) {{
+        searchCount.textContent = "";
+        if (!additive) setSelectedAssets([]);
+        return;
+      }}
+      const matches = (latestSnapshot?.nodes || [])
+        .filter((node) => String(node.key).toLowerCase().includes(query))
+        .map((node) => node.key);
+      searchCount.textContent = `${{matches.length}} match${{matches.length === 1 ? "" : "es"}}`;
+      setSelectedAssets(additive ? [...selectedAssets, ...matches] : matches);
+    }}
+
+    searchInput.addEventListener("input", () => searchAssets(false));
+    searchInput.addEventListener("keydown", (event) => {{
+      if (event.key === "Enter") {{
+        searchAssets(event.shiftKey);
+      }} else if (event.key === "Escape") {{
+        searchInput.value = "";
+        searchAssets(false);
+        searchInput.blur();
+      }}
     }});
 
     graphWrap.addEventListener("mousedown", (event) => {{
